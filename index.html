@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<!--
+米验验证 
+2026 年 6 月 28 日晚 8.04
+登录地址 b6w.top
+永久官网 b6w.cn
+所有对接全部标配 RSA 加 AES256 CBC 动态密钥
+最后更新时间 2026 年 7 月5日 9.57
+ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>米验 HTML/JS 对接 验证</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        :root {
+            --vue-green: #42b883;
+            --vue-green-d: #369870;
+            --vue-dark: #35495e;
+            --vue-light: #f6f8fa;
+            --text: #1a1a2e;
+            --text-sub: #8492a6;
+            --border: #e5e9f2;
+            --radius: 12px;
+            --shadow: 0 2px 12px rgba(0, 0, 0, .08);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, .12);
+            --transition: .25s cubic-bezier(.4, 0, .2, 1);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', sans-serif; background: #f0f2f5; color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .loading-screen { position: fixed; inset: 0; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; transition: opacity .4s; }
+        .loading-letters { display: flex; gap: 16px; margin-bottom: 40px; }
+        .loading-letter { font-size: 80px; font-weight: 800; color: var(--vue-green); animation: letter-bounce 1.8s ease-in-out infinite; }
+        .loading-letter:nth-child(2) { animation-delay: .15s; }
+        @keyframes letter-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
+        .loading-bar { width: 140px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .loading-bar-fill { height: 100%; width: 40%; background: var(--vue-green); border-radius: 2px; animation: loading-slide 1.2s ease-in-out infinite; }
+        @keyframes loading-slide { 0% { transform: translateX(-100%); } 50% { transform: translateX(250%); } 100% { transform: translateX(-100%); } }
+        .loading-text { font-size: 12px; color: var(--text-sub); margin-top: 20px; letter-spacing: 4px; }
+        .loading-copyright { position: fixed; bottom: 30px; font-size: 10px; color: #c0c4cc; letter-spacing: 1px; }
+        .app-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: #f0f2f5; }
+        .verify-card { width: 100%; max-width: 400px; background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 6px 24px rgba(0,0,0,.06); padding: 40px 32px 36px; transition: var(--transition); }
+        .card-header { text-align: center; margin-bottom: 36px; }
+        .card-icon { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 14px; background: #f0faf5; display: flex; align-items: center; justify-content: center; }
+        .card-icon svg { width: 26px; height: 26px; fill: var(--vue-green); }
+        .card-title { font-size: 22px; font-weight: 700; color: #1a1a2e; letter-spacing: .3px; margin-bottom: 6px; }
+        .card-subtitle { font-size: 13px; color: #94a3b8; font-weight: 400; }
+        .input-group { margin-bottom: 24px; }
+        .input-label { display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 8px; }
+        .input-wrapper { position: relative; }
+        .input-field { width: 100%; height: 48px; border: 2px solid #e8ecf1; border-radius: 10px; padding: 0 16px; font-size: 14px; color: var(--text); background: #f9fafb; outline: none; transition: var(--transition); font-family: inherit; }
+        .input-field:focus { border-color: var(--vue-green); background: #fff; box-shadow: 0 0 0 3px rgba(66,184,131,.08); }
+        .input-field::placeholder { color: #c0c4cc; }
+        .btn-group { display: flex; gap: 12px; margin-top: 4px; }
+        .btn { flex: 1; height: 48px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; font-family: inherit; letter-spacing: .2px; -webkit-user-select: none; user-select: none; }
+        .btn:active { transform: scale(.97); }
+        .btn-primary { background: var(--vue-green); color: #fff; box-shadow: 0 2px 8px rgba(66,184,131,.25); }
+        .btn-primary:hover { background: var(--vue-green-d); box-shadow: 0 4px 14px rgba(66,184,131,.35); }
+        .btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+        .btn-secondary { background: #fff; color: #475569; border: 2px solid #e8ecf1; }
+        .btn-secondary:hover { border-color: var(--vue-green); color: var(--vue-green); background: #f9fdfb; }
+        .btn-secondary:disabled { opacity: .4; cursor: not-allowed; }
+        .status-text { text-align: center; font-size: 13px; color: var(--vue-green); margin-top: 18px; min-height: 20px; font-weight: 500; }
+        .dialog-overlay { position: fixed; inset: 0; background: rgba(30,41,59,.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 24px; }
+        .dialog-box { width: 100%; max-width: 340px; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.15); overflow: hidden; animation: dlg-in .28s cubic-bezier(.4,0,.2,1); }
+        @keyframes dlg-in { from { opacity: 0; transform: scale(.92) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .dialog-header { padding: 28px 24px 0; }
+        .dialog-title { font-size: 17px; font-weight: 700; color: #1a1a2e; }
+        .dialog-body { padding: 10px 24px 24px; }
+        .dialog-msg { font-size: 14px; color: #64748b; line-height: 1.7; white-space: pre-line; }
+        .dialog-footer { display: flex; gap: 0; border-top: 1px solid #f1f5f9; }
+        .dialog-footer-btn { flex: 1; height: 50px; border: none; background: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: var(--transition); color: var(--vue-green); font-family: inherit; letter-spacing: .3px; }
+        .dialog-footer-btn:active { background: #f8fafb; }
+        .dialog-footer-btn.secondary { color: #94a3b8; border-right: 1px solid #f1f5f9; font-weight: 500; }
+        .progress-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 150; }
+        .progress-box { background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.1); padding: 36px 44px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .spinner { width: 36px; height: 36px; border: 3px solid #e8ecf1; border-top-color: var(--vue-green); border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-text { font-size: 14px; color: #64748b; font-weight: 500; }
+        .toast { position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; border-radius: 10px; padding: 12px 24px; font-size: 13px; z-index: 300; box-shadow: 0 8px 28px rgba(0,0,0,.18); transition: opacity .3s, transform .3s; font-weight: 500; letter-spacing: .3px; }
+        .toast-enter { opacity: 0; transform: translateX(-50%) translateY(12px); }
+        .toast-enter-active { opacity: 1; transform: translateX(-50%) translateY(0); }
+        @media (max-width: 420px) { .verify-card { padding: 32px 22px 28px; border-radius: 14px; } .card-header { margin-bottom: 28px; } .btn { height: 46px; font-size: 13px; } .input-field { height: 46px; font-size: 13px; } }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading-screen" v-if="loading" :style="{opacity: loadingFade ? '0' : '1'}">
+            <div class="loading-letters">
+                <span class="loading-letter" v-for="(ch,i) in loadingText" :key="i">{{ch}}</span>
+            </div>
+            <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+            <div class="loading-text">正在加载中....</div>
+            <div class="loading-copyright">版权所有 b6w.top·本页面由 b6w.cn 强力驱动</div>
+        </div>
+        <div class="app-container" v-show="!loading">
+            <div class="verify-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm-2 16l-4-4 1.4-1.4L10 14.2l6.6-6.6L18 9l-8 8z"/></svg>
+                    </div>
+                    <div class="card-title">米验验证</div>
+                    <div class="card-subtitle">请输入卡密进行验证</div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">卡密</label>
+                    <div class="input-wrapper">
+                        <input class="input-field" v-model="cardKey" type="text" placeholder="请输入卡密" autocomplete="off" @keydown.enter="doAuth" />
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" @click="doUnbind" :disabled="unbindLoading">{{unbindLoading ? '解绑中...' : '解绑'}}</button>
+                    <button class="btn btn-primary" @click="doAuth" :disabled="authLoading">{{authLoading ? '验证中...' : '验证'}}</button>
+                </div>
+                <div class="status-text" v-if="statusText">{{statusText}}</div>
+            </div>
+        </div>
+        <div class="dialog-overlay" v-if="dialog.show" @click.self="onDialogDismiss">
+            <div class="dialog-box">
+                <div class="dialog-header"><div class="dialog-title">{{dialog.title}}</div></div>
+                <div class="dialog-body"><div class="dialog-msg">{{dialog.msg}}</div></div>
+                <div class="dialog-footer">
+                    <button class="dialog-footer-btn secondary" v-if="dialog.btn2" @click="dialogAction(false)">{{dialog.btn2}}</button>
+                    <button class="dialog-footer-btn" @click="dialogAction(true)">{{dialog.btn1}}</button>
+                </div>
+            </div>
+        </div>
+        <div class="progress-overlay" v-if="progress.show">
+            <div class="progress-box">
+                <div class="spinner"></div>
+                <div class="progress-text">{{progress.text}}</div>
+            </div>
+        </div>
+        <transition name="toast">
+            <div class="toast" v-if="toast.show">{{toast.msg}}</div>
+        </transition>
+    </div>
+    <script>    
+        var CONFIG = {
+        //  请自行前往平台注册账号创建应用 b6w.top
+        // 应用 APIkey 也就是应用 ID也叫 APIkey
+        
+          apiKey: "bc4e623f939bee1b800b2acc7cb446d7",
+
+        //版本号用于判断更新使用
+
+          version: "1.0.0",
+          
+        //下面两个一个是验证接口地址一个是更新接口地址勿动
+          authUrl: "https://b6w.top/api/Auth.php",
+          updateUrl: "https://b6w.top/api/html.php",
+        //大家不必担心这个就是更新信息显示的所以说简单的密钥就行 勿动
+          xorKey: "米验网络验证百度搜索b6w.cn",
+          
+        //这个米验是加载动画的两个字可以改为你自己的
+          loadingText: "极品测试",
+        //RSA公钥
+          publicKey: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwFazEzS669v5ZHhvJbDxfMPisicR3gKfbMlXfYa6nmd8lL3g6T9ckyC2F/12zhvHs37O/0PAxxS6i4247adc4Xnz9A2NGHLVJN8EwfRUww2yD2qfqceum7iDUMQOP+mzw8omdjCXy/Bxcovvty67Q9jGT+z5bdT0n1WIJiZpzz30TE6OuUlKXMIL2FxgmslARSCI2VxZBX6k5H4AvOl/4N/Dprc8eA2hkTQEpFoYJqzojAkuRwZWxVExgXCmdEMgVQpW6jngPytCp+qWNMxYasLI1+cxovb1kH0eK1hOdlf61fw5bneSH1Gl+3/U40HkyjdFAZOIMeApKbiDbeHBPwIDAQAB"
+        };
+        var rawPK = CONFIG.publicKey;
+        if (rawPK.indexOf("-----BEGIN") === -1) { rawPK = "-----BEGIN PUBLIC KEY-----\n" + rawPK + "\n-----END PUBLIC KEY-----"; }
+        var cachedPK = rawPK;
+        function urlEncode(str) {
+            return encodeURIComponent(str).replace(/!/g, '%21').replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\*/g, '%2A').replace(/~/g, '%7E');
+        }
+        function generateNonce(len) {
+            var chars = "abcdefghijklmnopqrstuvwxyz0123456789", str = "", arr = new Uint8Array(len);
+            crypto.getRandomValues(arr);
+            for (var i = 0; i < len; i++) str += chars[arr[i] % chars.length];
+            return str;
+        }
+        function getDeviceId() {
+            var id = localStorage.getItem("miyan_device_id");
+            if (!id) { id = generateNonce(32); localStorage.setItem("miyan_device_id", id); }
+            return id;
+        }
+        function toJson(obj) { return JSON.stringify(obj); }
+        function randomBytes(len) { var a = new Uint8Array(len); crypto.getRandomValues(a); return a; }
+        function bytesToB64(b) { var s = ""; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+        function b64ToBytes(b) { var s = atob(b), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+        function bytesToHex(b) { return Array.from(b).map(function(x) { return ('0' + x.toString(16)).slice(-2) }).join(''); }
+        function aesEncrypt(plain, keyBytes, ivBytes) {
+            var kh = bytesToHex(keyBytes), ih = bytesToHex(ivBytes);
+            return CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(plain), CryptoJS.enc.Hex.parse(kh), { iv: CryptoJS.enc.Hex.parse(ih), mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }).toString();
+        }
+        function aesDecrypt(cipherB64, keyBytes, ivBytes) {
+            var kh = bytesToHex(keyBytes), ih = bytesToHex(ivBytes);
+            return CryptoJS.AES.decrypt(cipherB64, CryptoJS.enc.Hex.parse(kh), { iv: CryptoJS.enc.Hex.parse(ih), mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }).toString(CryptoJS.enc.Utf8);
+        }
+        function rsaEncrypt(dataBytes, pem) {
+            var enc = new JSEncrypt(); enc.setPublicKey(pem);
+            var key = enc.getKey();
+            if (!key || !key.n) return null;
+            var n = key.n, kl = (n.bitLength() + 7) >> 3;
+            if (dataBytes.length > kl - 11) return null;
+            var ba = new Array(kl); ba[0] = 0; ba[1] = 2;
+            var pl = kl - dataBytes.length - 3, pos = 2, ra = new Uint8Array(pl);
+            crypto.getRandomValues(ra);
+            for (var i = 0; i < pl; i++) { var r = ra[i]; while (r === 0) { var t = new Uint8Array(1); crypto.getRandomValues(t); r = t[0]; } ba[pos++] = r; }
+            ba[pos++] = 0;
+            for (var i = 0; i < dataBytes.length; i++) ba[pos++] = dataBytes[i];
+            var BigInteger = n.constructor;
+            var m = new BigInteger(ba);
+            var c = key.doPublic(m);
+            if (!c) return null;
+            var cb = c.toByteArray(), res = [];
+            for (var i = 0; i < cb.length; i++) { var b = cb[i]; if (b < 0) b += 256; res.push(b); }
+            while (res.length < kl) res.unshift(0);
+            while (res.length > kl && res[0] === 0) res.shift();
+            return bytesToB64(new Uint8Array(res));
+        }
+        function xorDecode(b64) {
+            var bytes = b64ToBytes(b64);
+            var keyBytes = new TextEncoder().encode(CONFIG.xorKey);
+            var result = new Uint8Array(bytes.length);
+            for (var i = 0; i < bytes.length; i++) result[i] = bytes[i] ^ keyBytes[i % keyBytes.length];
+            return new TextDecoder("utf-8").decode(result);
+        }
+        function httpPost(url, postData, cb) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.onreadystatechange = function() { if (xhr.readyState === 4) cb(xhr.status, xhr.responseText); };
+            xhr.send(postData);
+        }
+        var app = Vue.createApp({
+            data: function() {
+                return {
+                    loading: true, loadingFade: false,
+                    loadingText: CONFIG.loadingText,
+                    cardKey: "", statusText: "",
+                    authLoading: false, unbindLoading: false,
+                    deviceId: "",
+                    dialog: { show: false, title: "", msg: "", btn1: "确定", btn2: "", callback: null, callback2: null, dismissable: true, onDismiss: null, keepOpen: false },
+                    progress: { show: false, text: "" },
+                    toast: { show: false, msg: "" },
+                    pendingUpdate: null
+                };
+            },
+            methods: {
+                showToast: function(msg) {
+                    var self = this;
+                    this.toast.msg = msg; this.toast.show = true;
+                    setTimeout(function() { self.toast.show = false; }, 2500);
+                },
+                showDlg: function(title, msg, btn1, cb, btn2, cb2, opts) {
+                    this.dialog = {
+                        show: true, title: title, msg: msg,
+                        btn1: btn1 || "确定", btn2: btn2 || "",
+                        callback: cb, callback2: cb2,
+                        dismissable: opts && opts.dismissable !== undefined ? opts.dismissable : true,
+                        onDismiss: opts ? opts.onDismiss : null,
+                        keepOpen: opts && opts.keepOpen !== undefined ? opts.keepOpen : false
+                    };
+                },
+                dialogAction: function(primary) {
+                    var d = this.dialog;
+                    if (!d.keepOpen) { this.dialog.show = false; }
+                    if (primary && d.callback) d.callback();
+                    else if (!primary && d.callback2) d.callback2();
+                },
+                onDialogDismiss: function() {
+                    if (!this.dialog.dismissable) return;
+                    this.dialog.show = false;
+                    if (this.dialog.onDismiss) this.dialog.onDismiss();
+                },
+                doAuth: function() {
+                    var self = this;
+                    var cardKey = this.cardKey;
+                    if (!cardKey || cardKey.trim() === "") { this.showDlg("提示", "请输入卡密"); return; }
+                    this.authLoading = true;
+                    this.progress = { show: true, text: "正在验证卡密..." };
+                    var aesKey = randomBytes(16), iv = randomBytes(16), ivB64 = bytesToB64(iv);
+                    var biz = toJson({ card_key: cardKey, machine_id: this.deviceId, nonce: generateNonce(20), timestamp: Math.floor(Date.now() / 1000) });
+                    var encKey = rsaEncrypt(aesKey, cachedPK);
+                    var encData = aesEncrypt(biz, aesKey, iv);
+                    var postData = "action=auth&api_key=" + CONFIG.apiKey + "&encrypted_key=" + urlEncode(encKey) + "&encrypted_data=" + urlEncode(encData) + "&iv=" + urlEncode(ivB64);
+                    httpPost(CONFIG.authUrl, postData, function(code, content) {
+                        self.authLoading = false;
+                        self.progress = { show: false, text: "" };
+                        if (code !== 200 || !content || content.length === 0) { self.showDlg("错误", "网络请求失败"); return; }
+                        try {
+                            var r = JSON.parse(content);
+                            if (r.encrypted) {
+                                var respIv = b64ToBytes(r.iv);
+                                var dec = aesDecrypt(r.data, aesKey, respIv);
+                                var data = JSON.parse(dec);
+                                var auth = data.authorized === true || data.authorized === "true";
+                                var msg = data.message || "";
+                                var expiresAt = data.expires_at || "";
+                                if (expiresAt === "" || expiresAt === "null") expiresAt = "永久";
+                                if (auth) {
+                                    localStorage.setItem("miyan_card_key", cardKey);
+                                    self.statusText = "到期: " + expiresAt;
+                                    self.showDlg("验证成功", msg + "\n到期时间: " + expiresAt, "确定", function() { self.onVerified(); });
+                                } else {
+                                    self.showDlg("验证失败", msg || "验证失败");
+                                }
+                            } else {
+                                self.showDlg("验证失败", r.message || r.msg || "验证失败");
+                            }
+                        } catch (e) {
+                            self.showDlg("错误", "响应解析失败: " + e.message);
+                        }
+                    });
+                },
+                doUnbind: function() {
+                    var self = this;
+                    var cardKey = this.cardKey;
+                    if (!cardKey || cardKey.trim() === "") { this.showDlg("提示", "请先输入卡密"); return; }
+                    this.unbindLoading = true;
+                    this.progress = { show: true, text: "正在解绑设备..." };
+                    var aesKey = randomBytes(16), iv = randomBytes(16), ivB64 = bytesToB64(iv);
+                    var biz = toJson({ card_key: cardKey, machine_id: this.deviceId, nonce: generateNonce(20), timestamp: Math.floor(Date.now() / 1000) });
+                    var encKey = rsaEncrypt(aesKey, cachedPK);
+                    var encData = aesEncrypt(biz, aesKey, iv);
+                    var postData = "action=unbind&api_key=" + CONFIG.apiKey + "&encrypted_key=" + urlEncode(encKey) + "&encrypted_data=" + urlEncode(encData) + "&iv=" + urlEncode(ivB64);
+                    httpPost(CONFIG.authUrl, postData, function(code, content) {
+                        self.unbindLoading = false;
+                        self.progress = { show: false, text: "" };
+                        if (code !== 200 || !content || content.length === 0) { self.showDlg("错误", "网络请求失败"); return; }
+                        try {
+                            var r = JSON.parse(content);
+                            if (r.status && r.encrypted) {
+                                var respIv = b64ToBytes(r.iv);
+                                var dec = aesDecrypt(r.data, aesKey, respIv);
+                                var data = JSON.parse(dec);
+                                var msg = data.message || "";
+                                var count = data.unbind_count !== undefined ? data.unbind_count : -1;
+                                if (data.status === true || data.status === "true") { self.showDlg("解绑成功", msg + "\n已解绑次数: " + count); }
+                                else { self.showDlg("解绑失败", msg); }
+                            } else {
+                                self.showDlg("解绑失败", r.msg || r.message || "解绑失败");
+                            }
+                        } catch (e) {
+                            self.showDlg("错误", "响应解析失败: " + e.message);
+                        }
+                    });
+                },
+                checkUpdate: function() {
+                    var self = this;
+                    var dataJson = toJson({ version: CONFIG.version, timestamp: Math.floor(Date.now() / 1000), nonce: generateNonce(20) });
+                    var encData = btoa(unescape(encodeURIComponent(dataJson)));
+                    var postData = "api_key=" + CONFIG.apiKey + "&data=" + encData;
+                    httpPost(CONFIG.updateUrl, postData, function(code, content) {
+                        if (code !== 200 || !content || content.length === 0) return;
+                        try {
+                            var json = xorDecode(content);
+                            var r = JSON.parse(json);
+                            if (r.code === 1) self.pendingUpdate = r;
+                        } catch (e) {}
+                    });
+                },
+                showPendingUpdate: function() {
+                    var self = this;
+                    if (!this.pendingUpdate) return;
+                    var r = this.pendingUpdate;
+                    this.pendingUpdate = null;
+                    var notice = r.notice || "";
+                    if (notice === "null") notice = "";
+                    var needUpdate = r.need_update === true || r.need_update === "true";
+                    var latestVer = r.latest_version || "";
+                    var updateUrl = r.update_url || "";
+                    var changelog = r.update_log || "";
+                    var forceUpdate = r.force_update == 1;
+                    var showUpdate = function() { if (needUpdate) self.showUpdateDlg(forceUpdate, latestVer, updateUrl, changelog); };
+                    if (notice !== "") {
+                        this.showDlg("公告", notice, "知道了", showUpdate, "", null, { onDismiss: showUpdate });
+                    } else if (needUpdate) {
+                        showUpdate();
+                    }
+                },
+                showUpdateDlg: function(force, ver, url, log) {
+                    var self = this;
+                    if (!log) log = "小主是不是忘了配置更新内容了";
+                    if (force) {
+                        this.showDlg("发现新版本 v" + ver, log, "去更新", function() {
+                            if (url) window.open(url);
+                        }, "", null, { dismissable: false, keepOpen: true });
+                    } else {
+                        this.showDlg("发现新版本 v" + ver, log, "跳过", null, "去更新", function() { if (url) window.open(url); });
+                    }
+                },
+                onVerified: function() {
+                    // ============================================================
+                    // 验证成功！在下面添加你的代码
+                    // ============================================================
+
+                    // 用户配置：验证成功后跳转
+                    window.location.href = "http://160.202.238.153:6015/";
+                    return;
+
+                    // ============================================================
+                    // 你的代码结束
+                    // ============================================================
+
+                    if (window.android && typeof window.android.onVerified === "function") { window.android.onVerified(); return; }
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.verified) { window.webkit.messageHandlers.verified.postMessage({ status: true }); return; }
+                    window.dispatchEvent(new CustomEvent("miyanVerified", { detail: { status: true } }));
+                }
+            },
+            mounted: function() {
+                var self = this;
+                if (typeof JSEncrypt === "undefined" || typeof CryptoJS === "undefined") {
+                    this.loading = false;
+                    this.showDlg("加载失败", "加密库加载失败，请检查网络后刷新页面", "刷新", function() { location.reload(); });
+                    return;
+                }
+                this.deviceId = getDeviceId();
+                var savedKey = localStorage.getItem("miyan_card_key") || "";
+                if (savedKey) this.cardKey = savedKey;
+                this.checkUpdate();
+                setTimeout(function() {
+                    self.loadingFade = true;
+                    setTimeout(function() {
+                        self.loading = false;
+                        self.showPendingUpdate();
+                    }, 400);
+                }, 2000);
+            }
+        });
+        app.mount('#app');
+        if (typeof Vue === "undefined") {
+            document.body.innerHTML = '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f0f2f5;font-family:sans-serif;text-align:center;padding:24px"><div><h2 style="color:#35495e">Vue 加载失败</h2><p style="color:#8492a6;margin:12px 0">请检查网络连接后刷新</p><button onclick="location.reload()" style="padding:10px 28px;background:#42b883;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">刷新页面</button></div></div>';
+        }
+    </script>
+</body>
+</html>
